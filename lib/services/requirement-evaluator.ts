@@ -4,13 +4,12 @@ import type { EvaluationResult, PolicyChunkMatch } from "../types";
 const EVALUATION_PROMPT = `You are a healthcare regulatory compliance evaluator. Given a regulatory requirement and excerpts from an organization's policies, determine whether the requirement is met.
 
 Evaluate carefully:
-- "met": The policy clearly addresses the requirement with sufficient specificity.
+- "met": The policy addresses the requirement with sufficient specificity.
 - "not_met": No policy excerpt adequately addresses the requirement.
-- "partial": The policy partially addresses the requirement but is missing key elements.
 
 Return a JSON object with:
-- "status": "met", "not_met", or "partial"
-- "confidence": 0.0 to 1.0 indicating your confidence
+- "status": "met" or "not_met" (no other values)
+- "confidence": 0.0 to 1.0 indicating your confidence in the determination
 - "evidence": The exact quote from the policy that addresses the requirement (null if not_met)
 - "sourcePolicyId": The policy ID where evidence was found (null if not_met)
 - "sourcePolicyTitle": The policy title (null if not_met)
@@ -58,7 +57,7 @@ export async function evaluateRequirement(
   return {
     requirementId,
     requirementText,
-    status: parsed.status || "not_met",
+    status: parsed.status === "met" ? "met" : "not_met",
     confidence: parsed.confidence ?? 0,
     evidence: parsed.evidence || null,
     sourcePolicyId: parsed.sourcePolicyId || null,

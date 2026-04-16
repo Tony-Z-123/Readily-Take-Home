@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { EvaluationResult, Requirement } from "@/lib/types";
@@ -23,12 +23,6 @@ const statusConfig = {
     label: "Not Met",
     badgeClass: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
     iconClass: "text-red-600",
-  },
-  partial: {
-    icon: AlertCircle,
-    label: "Partial",
-    badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    iconClass: "text-amber-600",
   },
 };
 

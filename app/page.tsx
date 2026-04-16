@@ -26,7 +26,6 @@ export default function Home() {
   const [summary, setSummary] = useState<{
     met: number;
     notMet: number;
-    partial: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,7 +107,6 @@ export default function Home() {
               setSummary({
                 met: d.summary.met,
                 notMet: d.summary.notMet,
-                partial: d.summary.partial,
               });
               setStatusMessage(null);
               setIsProcessing(false);

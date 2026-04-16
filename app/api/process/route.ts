@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
 
         let met = 0;
         let notMet = 0;
-        let partial = 0;
         let completedCount = 0;
 
         const allEmbeddings = await generateEmbeddings(
@@ -74,8 +73,7 @@ export async function POST(request: NextRequest) {
               );
 
               if (result.status === "met") met++;
-              else if (result.status === "not_met") notMet++;
-              else partial++;
+              else notMet++;
 
               send({
                 type: "requirement_evaluated",
@@ -118,7 +116,6 @@ export async function POST(request: NextRequest) {
               total: requirements.length,
               met,
               notMet,
-              partial,
             },
           },
         });

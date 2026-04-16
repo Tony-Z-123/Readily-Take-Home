@@ -9,7 +9,7 @@ interface RequirementsListProps {
   results: Map<number, EvaluationResult>;
   progress: number;
   total: number;
-  summary: { met: number; notMet: number; partial: number } | null;
+  summary: { met: number; notMet: number } | null;
 }
 
 export function RequirementsList({
@@ -35,11 +35,6 @@ export function RequirementsList({
             <span className="text-red-600 font-medium">
               {summary.notMet} not met
             </span>
-            {summary.partial > 0 && (
-              <span className="text-amber-600 font-medium">
-                {summary.partial} partial
-              </span>
-            )}
           </div>
         )}
       </div>

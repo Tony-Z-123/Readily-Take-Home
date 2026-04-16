@@ -24,7 +24,7 @@ export interface PolicyChunkMatch {
 export interface EvaluationResult {
   requirementId: number;
   requirementText: string;
-  status: "met" | "not_met" | "partial";
+  status: "met" | "not_met";
   confidence: number;
   evidence: string | null;
   sourcePolicyId: string | null;
@@ -54,7 +54,6 @@ export interface ProcessingCompleteEvent {
     total: number;
     met: number;
     notMet: number;
-    partial: number;
   };
 }
 
