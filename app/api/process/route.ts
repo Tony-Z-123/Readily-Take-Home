@@ -1,0 +1,130 @@
+import { NextRequest } from "next/server";
+import { parsePDFBuffer } from "@/lib/services/pdf-parser";
+import { extractRequirements } from "@/lib/services/requirement-extractor";
+import { findRelevantChunks } from "@/lib/services/policy-retriever";
+import { evaluateRequirement } from "@/lib/services/requirement-evaluator";
+import type { ProcessingEvent } from "@/lib/types";
+
+export const maxDuration = 300;
+
+function encodeSSE(event: ProcessingEvent): string {
+  return `data: ${JSON.stringify(event)}\n\n`;
+}
+
+export async function POST(request: NextRequest) {
+  const formData = await request.formData();
+  const file = formData.get("file") as File | null;
+
+  if (!file || file.type !== "application/pdf") {
+    return new Response(JSON.stringify({ error: "Please upload a PDF file" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+
+      function send(event: ProcessingEvent) {
+        controller.enqueue(encoder.encode(encodeSSE(event)));
+      }
+
+      try {
+        const parsed = await parsePDFBuffer(buffer, file.name);
+        const requirements = await extractRequirements(parsed.fullText);
+
+        send({
+          type: "requirements_extracted",
+          data: {
+            requirements,
+            totalCount: requirements.length,
+          },
+        });
+
+        let met = 0;
+        let notMet = 0;
+        let partial = 0;
+
+        for (let i = 0; i < requirements.length; i++) {
+          const req = requirements[i];
+
+          try {
+            const relevantChunks = await findRelevantChunks(req.text, 5);
+            const result = await evaluateRequirement(
+              req.id,
+              req.text,
+              relevantChunks
+            );
+
+            if (result.status === "met") met++;
+            else if (result.status === "not_met") notMet++;
+            else partial++;
+
+            send({
+              type: "requirement_evaluated",
+              data: {
+                result,
+                progress: i + 1,
+                total: requirements.length,
+              },
+            });
+          } catch (err) {
+            send({
+              type: "requirement_evaluated",
+              data: {
+                result: {
+                  requirementId: req.id,
+                  requirementText: req.text,
+                  status: "not_met",
+                  confidence: 0,
+                  evidence: null,
+                  sourcePolicyId: null,
+                  sourcePolicyTitle: null,
+                  sourcePageNumber: null,
+                  reasoning: `Error evaluating: ${err instanceof Error ? err.message : "Unknown error"}`,
+                },
+                progress: i + 1,
+                total: requirements.length,
+              },
+            });
+            notMet++;
+          }
+        }
+
+        send({
+          type: "processing_complete",
+          data: {
+            summary: {
+              total: requirements.length,
+              met,
+              notMet,
+              partial,
+            },
+          },
+        });
+      } catch (err) {
+        send({
+          type: "error",
+          data: {
+            message:
+              err instanceof Error ? err.message : "Unknown error occurred",
+          },
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}

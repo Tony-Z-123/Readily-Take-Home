@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# policy index (large pre-computed file)
+/data/policy-index.json
+
 # vercel
 .vercel
 
