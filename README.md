@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Regulatory Compliance Checker
+
+A web application that automates healthcare regulatory compliance audits. Upload a regulatory document (PDF), and the app extracts each requirement, searches an organization's policy corpus for matching evidence, and reports whether each requirement is met.
+
+## How It Works
+
+```
+Upload regulatory PDF
+        |
+        v
+Extract requirements (GPT-5.4)
+        |
+        v
+For each requirement:
+  1. Embed the requirement text (text-embedding-3-small)
+  2. Find top-5 matching policy chunks via cosine similarity
+  3. Evaluate met/not-met with evidence (GPT-5.4-mini)
+        |
+        v
+Stream results to browser via SSE
+```
+
+**Pre-indexed policy corpus**: 373 policy PDFs from CalOptima Health are pre-processed into 7,380 text chunks with vector embeddings, stored in a local JSON file. At runtime, requirements are matched against this corpus using cosine similarity search — no external database required.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- An OpenAI API key with access to `gpt-5.4`, `gpt-5.4-mini`, and `text-embedding-3-small`
+
+### Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Create environment file
+cp .env.local.example .env.local
+# Edit .env.local and add your OpenAI API key:
+# OPENAI_API_KEY=sk-...
+```
+
+### Build the Policy Index (one-time)
+
+The policy PDFs must be placed at `../ENG #3/Public Policies/` relative to the project root (the same directory structure from the take-home data).
+
+```bash
+npx tsx scripts/index-policies.ts
+```
+
+This reads all PDFs, chunks the text, generates embeddings via OpenAI, and saves the index to `data/policy-index.json` (~75 MB). This step takes approximately 3 minutes and costs a few cents in embedding API usage.
+
+### Run the App
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000), drop a regulatory PDF, and watch the results stream in.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  page.tsx                        Main page — file upload + results display
+  api/process/route.ts            SSE endpoint orchestrating the full pipeline
 
-## Learn More
+lib/
+  types.ts                        Shared TypeScript interfaces
+  services/
+    openai-client.ts              OpenAI SDK wrapper + embedding helper
+    pdf-parser.ts                 PDF text extraction
+    requirement-extractor.ts      LLM-powered requirement extraction
+    policy-retriever.ts           In-memory vector search over policy index
+    requirement-evaluator.ts      LLM-powered met/not-met evaluation
+  utils/
+    cosine-similarity.ts          Vector math (dot product, top-K search)
+    chunker.ts                    Text chunking with overlap
 
-To learn more about Next.js, take a look at the following resources:
+components/
+  file-upload.tsx                 Drag-and-drop PDF upload zone
+  requirements-list.tsx           Results list with summary and progress bar
+  requirement-card.tsx            Expandable card showing status + evidence
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+scripts/
+  index-policies.ts              One-time script to build the policy vector index
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Architecture Decisions
 
-## Deploy on Vercel
+- **In-memory vector search**: Policy embeddings are loaded into memory from a JSON file. Cosine similarity runs in TypeScript — no vector database dependency.
+- **Server-Sent Events**: Results stream to the browser as each requirement is evaluated, giving immediate feedback on a process that may take several minutes.
+- **Separate models for separate tasks**: `gpt-5.4` handles the complex task of extracting requirements from unstructured documents. `gpt-5.4-mini` handles the simpler per-requirement evaluation, keeping cost and latency manageable across 60+ requirements.
+- **SOLID structure**: Each service has a single responsibility. The OpenAI client is abstracted behind a wrapper so the LLM provider can be swapped without touching business logic.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Test Results
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Document | Type | Requirements | Met | Partial | Not Met |
+|----------|------|-------------|-----|---------|---------|
+| APL 25-008 Hospice (Easy) | Structured checklist | 64 | 7 | 43 | 14 |
+| CalAIM ECM Policy Guide (Hard) | 145-page narrative | 78 | 14 | 57 | 7 |
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **UI**: shadcn/ui + Tailwind CSS
+- **LLM**: OpenAI GPT-5.4 / GPT-5.4-mini
+- **Embeddings**: OpenAI text-embedding-3-small (512 dimensions)
+- **PDF Parsing**: pdf-parse
+- **Language**: TypeScript
