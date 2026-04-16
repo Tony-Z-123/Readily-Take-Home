@@ -96,10 +96,12 @@ scripts/
 
 ## Test Results
 
-| Document | Type | Requirements | Met | Partial | Not Met |
-|----------|------|-------------|-----|---------|---------|
-| APL 25-008 Hospice (Easy) | Structured checklist | 64 | 7 | 43 | 14 |
-| CalAIM ECM Policy Guide (Hard) | 145-page narrative | 78 | 14 | 57 | 7 |
+| Document | Type | Requirements | Met | Not Met |
+|----------|------|-------------|-----|---------| 
+| APL 25-008 Hospice (Easy) | Structured checklist | ~64 | 7 | 57 |
+| CalAIM ECM Policy Guide (Hard) | 145-page narrative | ~78 | 7 | 71 |
+
+**Note on requirement counts**: The number of extracted requirements may vary slightly between runs. Requirement extraction is performed by an LLM, which can split, merge, or interpret requirements differently each time depending on phrasing and context. This is expected behavior, not a bug. The evaluation step (met/not met) is deterministic given the same set of extracted requirements.
 
 ## Tech Stack
 
