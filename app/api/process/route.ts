@@ -1,9 +1,13 @@
 import { NextRequest } from "next/server";
 import { parsePDFBuffer } from "@/lib/services/pdf-parser";
 import { extractRequirements } from "@/lib/services/requirement-extractor";
+import { generateEmbeddings } from "@/lib/services/openai-client";
 import { findRelevantChunks } from "@/lib/services/policy-retriever";
 import { evaluateRequirement } from "@/lib/services/requirement-evaluator";
+import { processWithConcurrency } from "@/lib/utils/concurrency";
 import type { ProcessingEvent } from "@/lib/types";
+
+const CONCURRENCY_LIMIT = 10;
 
 export const maxDuration = 300;
 
@@ -48,52 +52,64 @@ export async function POST(request: NextRequest) {
         let met = 0;
         let notMet = 0;
         let partial = 0;
+        let completedCount = 0;
 
-        for (let i = 0; i < requirements.length; i++) {
-          const req = requirements[i];
+        const allEmbeddings = await generateEmbeddings(
+          requirements.map((r) => r.text)
+        );
 
-          try {
-            const relevantChunks = await findRelevantChunks(req.text, 5);
-            const result = await evaluateRequirement(
-              req.id,
-              req.text,
-              relevantChunks
-            );
+        await processWithConcurrency(
+          requirements.map((req, i) => ({ req, embedding: allEmbeddings[i] })),
+          async ({ req, embedding }) => {
+            try {
+              const relevantChunks = await findRelevantChunks(
+                req.text,
+                5,
+                embedding
+              );
+              const result = await evaluateRequirement(
+                req.id,
+                req.text,
+                relevantChunks
+              );
 
-            if (result.status === "met") met++;
-            else if (result.status === "not_met") notMet++;
-            else partial++;
+              if (result.status === "met") met++;
+              else if (result.status === "not_met") notMet++;
+              else partial++;
 
-            send({
-              type: "requirement_evaluated",
-              data: {
-                result,
-                progress: i + 1,
-                total: requirements.length,
-              },
-            });
-          } catch (err) {
-            send({
-              type: "requirement_evaluated",
-              data: {
-                result: {
-                  requirementId: req.id,
-                  requirementText: req.text,
-                  status: "not_met",
-                  confidence: 0,
-                  evidence: null,
-                  sourcePolicyId: null,
-                  sourcePolicyTitle: null,
-                  sourcePageNumber: null,
-                  reasoning: `Error evaluating: ${err instanceof Error ? err.message : "Unknown error"}`,
+              send({
+                type: "requirement_evaluated",
+                data: {
+                  result,
+                  progress: ++completedCount,
+                  total: requirements.length,
                 },
-                progress: i + 1,
-                total: requirements.length,
-              },
-            });
-            notMet++;
-          }
-        }
+              });
+            } catch (err) {
+              notMet++;
+
+              send({
+                type: "requirement_evaluated",
+                data: {
+                  result: {
+                    requirementId: req.id,
+                    requirementText: req.text,
+                    status: "not_met",
+                    confidence: 0,
+                    evidence: null,
+                    sourcePolicyId: null,
+                    sourcePolicyTitle: null,
+                    sourcePageNumber: null,
+                    reasoning: `Error evaluating: ${err instanceof Error ? err.message : "Unknown error"}`,
+                  },
+                  progress: ++completedCount,
+                  total: requirements.length,
+                },
+              });
+            }
+          },
+          CONCURRENCY_LIMIT
+        );
 
         send({
           type: "processing_complete",

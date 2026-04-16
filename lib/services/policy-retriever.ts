@@ -28,12 +28,13 @@ async function loadIndex(): Promise<PolicyIndex> {
 
 export async function findRelevantChunks(
   query: string,
-  topK: number = 5
+  topK: number = 5,
+  precomputedEmbedding?: number[]
 ): Promise<PolicyChunkMatch[]> {
   const index = await loadIndex();
   const embeddings = cachedEmbeddings!;
 
-  const queryEmbedding = await generateEmbedding(query);
+  const queryEmbedding = precomputedEmbedding ?? (await generateEmbedding(query));
   const topResults = findTopK(queryEmbedding, embeddings, topK);
 
   return topResults.map(({ index: idx, score }) => {
